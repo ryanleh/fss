@@ -1,0 +1,20 @@
+[package]
+name = "dpf"
+version = "0.1.0"
+description = "A library providing efficient distributed point function schemes"
+authors = [ "Ryan Lehmkuhl" ]
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+ark-ff = "^0.3.0"
+rand = "^0.8.4" 
+
+[dev-dependencies]
+ark-std = "^0.3.0"
+criterion = "^0.3"
+rand_chacha = "^0.3.1"
+
+[[bench]]
+name = "bench"
+harness = false
