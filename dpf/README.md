@@ -1,6 +1,6 @@
 <h1 align="center">dpf</h1>
 
-This crate implements traits and implementations for distributed point functions.
+This crate provides traits and implementations for distributed point functions.
 
 
 ## Reference papers
