@@ -28,7 +28,7 @@ cd fss
 cargo build --release
 ```
 
-_Note: The `nightly` toolchain is required since we use the unstable `min_specialization` feature to lower communication costs. No other unstable features are used._
+_Note: The `nightly` toolchain is required since we use the unstable [`min_specialization` feature](https://github.com/rust-lang/rfcs/pull/1210) to lower communication costs. No other unstable features are used._
 
 
 ## Tests
