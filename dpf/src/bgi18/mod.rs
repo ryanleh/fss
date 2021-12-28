@@ -27,11 +27,11 @@ where
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
     S: Seed,
 {
-    /// Converts a `usize` to a vector of bytes in little endian format
+    /// Converts a `usize` to a vector of bools in little endian format
     #[inline]
     fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Error>> {
         // Ensure that the point is valid in the given domain
-        if val >= 2usize.pow(log_domain as u32) {
+        if val >= (1 << log_domain) {
             return Err("Input point is not contained in provided domain")?;
         }
 
@@ -41,7 +41,7 @@ where
         // Compute the bit-decomposition
         let bytes = val.to_le_bytes();
         for i in 0..log_domain {
-            let mask = 2u8.pow((i % 8) as u32);
+            let mask = 1 << (i % 8);
             let bit = mask & bytes[(i / 8) as usize];
             bits.push(bit != 0);
         }

@@ -14,23 +14,26 @@ This library provides Rust crates for a few different types of FSS schemes:
 
 ## Build guide
 
-The library compiles on the `stable` toolchain of the Rust compiler (v 1.57+). To install the latest version of Rust, first install `rustup` by following the instructions [here](https://rustup.rs/), or via your platform's package manager. Once `rustup` is installed, install the Rust toolchain by invoking:
+The library compiles on the `nightly` toolchain of the Rust compiler (v 1.59+). To install the latest version of Rust, first install `rustup` by following the instructions [here](https://rustup.rs/), or via your platform's package manager. Once `rustup` is installed, install the Rust toolchain by invoking:
 
 ```bash
-rustup install stable
+rustup install nightly
 ```
 
 After that, use `cargo`, the standard Rust build tool, to build the libraries:
 
 ```bash
-git clone https://github.com/ryanleh/fss-rs.git
-cd fss-rs
+git clone https://github.com/ryanleh/fss.git
+cd fss
 cargo build --release
 ```
 
+_Note: The `nightly` toolchain is required since we use the unstable `min_specialization` feature to lower communication costs. No other unstable features are used._
+
+
 ## Tests
 
-This library comes with comprehensive unit and integration tests for each of the provided crates. Run the tests with:
+This library comes with comprehensive tests for each of the provided crates. Run the tests with:
 
 ```bash
 cargo test --all

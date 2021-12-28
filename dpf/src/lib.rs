@@ -1,6 +1,9 @@
+#![feature(min_specialization)]
+
 //! A crate implementing various distributed point function schemes
 use ark_ff::Field;
 use rand::{CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 /// DPF scheme based on [[BGI18]].
@@ -17,7 +20,7 @@ pub(crate) mod tests;
 pub trait DPF<F: Field> {
     /// A succinct representation of a function which outputs shares of the underlying point
     /// function
-    type Key;
+    type Key: Serialize + for<'de> Deserialize<'de>;
 
     /// Takes the description of a point function as input -- where the point is a field element --
     /// and outputs two `Key`s.
