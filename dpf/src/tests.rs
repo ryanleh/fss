@@ -4,9 +4,8 @@ use ark_ff::{
     UniformRand, Zero,
 };
 use ark_std::test_rng;
+use rand::{Rng, RngCore};
 use rand_chacha::ChaChaRng;
-
-use rand::Rng;
 
 // Set field, seed, and PRG types
 type F = Fp64<FParameters>;
@@ -46,7 +45,7 @@ fn test_correctness_helper<D: DPF<F>>() {
 
     for log_domain in 2usize..12 {
         // Generate a random point in the given domain and field value
-        let valid_range = 0..2usize.pow(log_domain as u32);
+        let valid_range = 0..(1 << log_domain);
         let x = rng.gen_range(valid_range.clone());
         let y = F::rand(&mut rng);
 
@@ -69,7 +68,7 @@ fn test_correctness_helper<D: DPF<F>>() {
 fn test_bad_inputs_helper<D: DPF<F>>() {
     let mut rng = test_rng();
     let log_domain: usize = 10;
-    let max = 2usize.pow(log_domain as u32);
+    let max = 1 << log_domain;
     let bad_range = max..2 * max;
 
     // Test Gen fail
@@ -97,4 +96,101 @@ fn test_correctness() {
 #[test]
 fn test_bad_inputs() {
     super::tests::test_bad_inputs_helper::<BGI18>();
+}
+
+use crate::bgi18::*;
+use bincode;
+use std::rc::Rc;
+
+fn gen_rand_codeword<R: RngCore + Rng>(rng: &mut R) -> CodeWord<S> {
+    let mut seeds = Pair::<S>::default();
+    rng.fill_bytes(seeds[0].as_mut());
+    rng.fill_bytes(seeds[1].as_mut());
+
+    let mut control_bits = Pair::<bool>::default();
+    control_bits[0] = rng.gen_bool(0.5);
+    control_bits[1] = rng.gen_bool(0.5);
+    CodeWord {
+        seeds,
+        control_bits,
+    }
+}
+
+#[test]
+fn test_serialization() {
+    let mut rng = test_rng();
+    let seed_len = S::default().len();
+
+    // --------------
+    // ---- Pair ----
+    // --------------
+
+    // Create seed and bit Pairs
+    let mut seeds = Pair::<S>::default();
+    rng.fill_bytes(seeds[0].as_mut());
+    rng.fill_bytes(seeds[1].as_mut());
+
+    let mut control_bits = Pair::<bool>::default();
+    control_bits[0] = rng.gen_bool(0.5);
+    control_bits[1] = rng.gen_bool(0.5);
+
+    // Serialize the pairs and assert the correct lengths
+    let serialized_seeds = bincode::serialize(&seeds).unwrap();
+    let serialized_bits = bincode::serialize(&control_bits).unwrap();
+    assert!(serialized_bits.len() == 1);
+    assert!(serialized_seeds.len() == seed_len * 2);
+
+    // Deserialize the Pairs and ensure they're unchanged
+    let recovered_seeds = bincode::deserialize::<Pair<S>>(&serialized_seeds).unwrap();
+    let recovered_bits = bincode::deserialize::<Pair<bool>>(&serialized_bits).unwrap();
+    assert!(seeds == recovered_seeds);
+    assert!(control_bits == recovered_bits);
+
+    // ---------------
+    // --- DPFNode ---
+    // ---------------
+
+    // Use that pair as a root to test DPFNode
+    let root = DPFNode {
+        seeds,
+        control_bits,
+    };
+
+    // Serialize the node and assert the correct length
+    let serialized_root = bincode::serialize(&root).unwrap();
+    assert!(serialized_root.len() == seed_len * 2 + 1);
+
+    // Deserialize the node and assert that it's unchanged
+    let recovered_root = bincode::deserialize::<DPFNode<S>>(&serialized_root).unwrap();
+    assert!(root == recovered_root);
+
+    // ---------------
+    // ----- Key -----
+    // ---------------
+
+    // Generate the key
+    let log_domain = 20;
+    let mut codewords = Vec::new();
+    for _ in 0..log_domain - 1 {
+        codewords.push(Pair::new(
+            gen_rand_codeword(&mut rng),
+            gen_rand_codeword(&mut rng),
+        ));
+    }
+    let key = Key {
+        log_domain,
+        root,
+        codewords: Rc::new(codewords),
+        mask: F::rand(&mut rng),
+    };
+
+    // Serialize the node. The size can be variable here since the field element may be compressed
+    let serialized_key = bincode::serialize(&key).unwrap();
+
+    // Deserialize the node and assert that it's unchanged
+    let recovered_key = bincode::deserialize::<Key<F, S>>(&serialized_key).unwrap();
+    assert!(key.log_domain == recovered_key.log_domain);
+    assert!(key.root == recovered_key.root);
+    assert!(key.codewords == recovered_key.codewords);
+    assert!(key.mask == recovered_key.mask);
 }

@@ -2,6 +2,7 @@
 
 This crate implements traits and implementations for distributed point functions.
 
+
 ## Reference papers
 
 [bgi18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
