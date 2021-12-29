@@ -11,7 +11,6 @@ use fss_funcs::point::{bgi18, DPF};
 #[macro_use]
 extern crate criterion;
 
-
 const LOG_DOMAIN_RANGE: [usize; 3] = [20, 25, 30];
 
 // Set field, seed, and PRG types
