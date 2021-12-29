@@ -8,9 +8,9 @@
 
 A funtional secret sharing (FSS) scheme is a cryptographic primitive which enables a party to secret-share a function. In particular, a FSS scheme takes as input a function `f`, and outputs a number of succinct keys which are distributed among parties. These keys enable each party to efficiently generate a secret share of a function evaluation `f(x)` while not revealing any information about `f`.
 
-This library provides Rust crates for a few different types of FSS schemes:
+This library provides the following Rust crates:
 
-* [`dpf`](dpf): Provides generic implementations of various distributed point functions
+* [`functions/`](functions): Provides generic implementations of various function secret-sharing schemes
 
 ## Build guide
 
