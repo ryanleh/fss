@@ -8,7 +8,7 @@ Currently the following functions are supported:
 
 A point function `f_{x, y}` is a function which evaluates to `y` on input `x`, and 0 everywhere else in it's domain. We provide implementations of the following point functions:
 
-* [[BGI18]]: the domain is `D: {0, 1}^n` and the range `R` is some field `F`
+* [[BGI18]]: the domain is `D: {0, 1}^n` and the range `R` is some field `F`.
 
 ### Interval functions
 
