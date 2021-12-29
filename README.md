@@ -10,7 +10,7 @@ A funtional secret sharing (FSS) scheme is a cryptographic primitive which enabl
 
 This library provides the following Rust crates:
 
-* [`functions/`](functions): Provides generic implementations of various function secret-sharing schemes
+* [`funcs/`](funcs): Provides generic implementations of various function secret-sharing schemes
 
 ## Build guide
 
