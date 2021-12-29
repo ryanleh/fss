@@ -1,4 +1,4 @@
-<h1 align="center">dpf</h1>
+<h1 align="center">fss-functions</h1>
 
 This crate provides traits and implementations for function secret sharing.
 
