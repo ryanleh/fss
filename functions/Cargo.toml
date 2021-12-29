@@ -1,7 +1,7 @@
 [package]
-name = "dpf"
+name = "fss-functions"
 version = "0.1.0"
-description = "A library providing efficient distributed point function schemes"
+description = "A library providing efficient function secret-sharing schemes"
 authors = [ "Ryan Lehmkuhl" ]
 license = "MIT"
 edition = "2021"
