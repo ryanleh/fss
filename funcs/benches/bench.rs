@@ -1,20 +1,16 @@
-#[macro_use]
-extern crate criterion;
-
-//use ark_ff::Field;
-//use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
-//use ark_test_curves::bls12_381;
-
-use criterion::{black_box, BenchmarkId, Criterion};
-
 use ark_ff::{
     BigInteger64 as BigInteger, FftParameters, Field, Fp64, Fp64Parameters, FpParameters,
 };
 use ark_std::test_rng;
+use criterion::{black_box, BenchmarkId, Criterion};
 use rand::Rng;
 use rand_chacha::ChaChaRng;
 
-use dpf::{bgi18, DPF};
+use fss_funcs::point::{bgi18, DPF};
+
+#[macro_use]
+extern crate criterion;
+
 
 const LOG_DOMAIN_RANGE: [usize; 3] = [20, 25, 30];
 
@@ -48,7 +44,7 @@ impl FpParameters for FParameters {
     const MODULUS_MINUS_ONE_DIV_TWO: BigInteger = BigInteger([4611686018427387891]);
 }
 
-fn gen_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
+fn dpf_gen_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
     let mut rng = test_rng();
 
     for log_domain in LOG_DOMAIN_RANGE {
@@ -64,7 +60,7 @@ fn gen_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
     }
 }
 
-fn eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
+fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
     let mut rng = test_rng();
 
     let mut group = c.benchmark_group("Eval");
@@ -103,10 +99,10 @@ fn eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_bgi18(c: &mut Criterion) {
-    gen_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
-    eval_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
+fn bench_dpf(c: &mut Criterion) {
+    dpf_gen_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
+    dpf_eval_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
 }
 
-criterion_group!(benches, bench_bgi18);
+criterion_group!(benches, bench_dpf);
 criterion_main!(benches);

@@ -98,7 +98,7 @@ fn test_bad_inputs() {
     super::tests::test_bad_inputs_helper::<BGI18>();
 }
 
-use crate::bgi18::*;
+use super::bgi18::*;
 use bincode;
 use std::rc::Rc;
 

@@ -1,18 +1,16 @@
-#![feature(min_specialization)]
-
-//! A crate implementing various distributed point function schemes
+//! A module implementing various distributed point function schemes
 use ark_ff::Field;
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 
+#[cfg(test)]
+pub(crate) mod tests;
+
 /// DPF scheme based on [[BGI18]].
 ///
 /// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
 pub mod bgi18;
-
-#[cfg(test)]
-pub(crate) mod tests;
 
 /// Describes the interface for a distributed point function scheme over some field. Such a scheme
 /// allows a sender to generate two keys which provide succinct representations of functions

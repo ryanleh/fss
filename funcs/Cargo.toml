@@ -1,5 +1,5 @@
 [package]
-name = "fss-functions"
+name = "fss-funcs"
 version = "0.1.0"
 description = "A library providing efficient function secret-sharing schemes"
 authors = [ "Ryan Lehmkuhl" ]
