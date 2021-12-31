@@ -2,7 +2,7 @@ use ark_ff::Field;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use std::{error::Error, marker::PhantomData, rc::Rc, vec::Vec};
 
-use super::DPF;
+use crate::{point::DPF, Pair, Seed};
 
 mod data_structures;
 pub use data_structures::*;

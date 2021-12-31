@@ -1,7 +1,7 @@
 //! A module implementing various distributed point function schemes
 use ark_ff::Field;
+use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize};
 use rand::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 #[cfg(test)]
@@ -18,9 +18,9 @@ pub mod bgi18;
 pub trait DPF<F: Field> {
     /// A succinct representation of a function which outputs shares of the underlying point
     /// function
-    type Key: Serialize + for<'de> Deserialize<'de>;
+    type Key: Serialize + Deserialize;
 
-    /// Takes the description of a point function as input -- where the point is a field element --
+    /// Takes the description of a point function as input -- where the value is a field element --
     /// and outputs two `Key`s.
     fn gen<RNG: CryptoRng + RngCore>(
         domain: usize,
