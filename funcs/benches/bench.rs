@@ -50,12 +50,11 @@ fn dpf_gen_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
         // Generate a random point in the given domain and field value
         let x = rng.gen_range(0..2usize.pow(log_domain as u32));
         let y = F::rand(&mut rng);
+        let func = (log_domain, x, y);
 
-        c.bench_with_input(
-            BenchmarkId::new("Gen", log_domain),
-            &log_domain,
-            |b, &log_domain| b.iter(|| black_box(D::gen(log_domain, x, y, &mut rng))),
-        );
+        c.bench_with_input(BenchmarkId::new("Gen", log_domain), &log_domain, |b, _| {
+            b.iter(|| black_box(D::gen(&func, &mut rng)))
+        });
     }
 }
 
@@ -68,9 +67,10 @@ fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
         // Generate a random point in the given domain and field value
         let x = rng.gen_range(0..2usize.pow(log_domain as u32));
         let y = F::rand(&mut rng);
+        let func = (log_domain, x, y);
 
         // Generate DPF keys
-        let (k1, k2) = D::gen(log_domain, x, y, &mut rng).unwrap();
+        let (k1, k2) = D::gen(&func, &mut rng).unwrap();
 
         // Random evaluation point
         let p = rng.gen_range(0..2usize.pow(log_domain as u32));
@@ -78,21 +78,21 @@ fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("P1/Random", log_domain),
             &log_domain,
-            |b, _| b.iter(|| black_box(D::eval(&k1, p))),
+            |b, _| b.iter(|| black_box(D::eval(&k1, &p))),
         );
 
         group.bench_with_input(BenchmarkId::new("P1/X", log_domain), &log_domain, |b, _| {
-            b.iter(|| black_box(D::eval(&k1, x)))
+            b.iter(|| black_box(D::eval(&k1, &x)))
         });
 
         group.bench_with_input(
             BenchmarkId::new("P2/Random", log_domain),
             &log_domain,
-            |b, _| b.iter(|| black_box(D::eval(&k2, p))),
+            |b, _| b.iter(|| black_box(D::eval(&k2, &p))),
         );
 
         group.bench_with_input(BenchmarkId::new("P2/X", log_domain), &log_domain, |b, _| {
-            b.iter(|| black_box(D::eval(&k2, x)))
+            b.iter(|| black_box(D::eval(&k2, &x)))
         });
     }
     group.finish();
