@@ -7,7 +7,6 @@ use ark_std::io::{Read, Write};
 use std::ops::{Index, IndexMut};
 
 pub mod point;
-//pub mod interval;
 
 /// A PRG seed
 pub trait Seed:
