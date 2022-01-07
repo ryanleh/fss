@@ -7,10 +7,8 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-#ark-ff = "^0.3.0"
-#ark-serialize = "^0.3.0"
-ark-ff = { path = "../../algebra/ff" }
-ark-serialize = { path = "../../algebra/serialize", features = ["derive"] }
+ark-ff = { git="https://github.com/arkworks-rs/algebra" }
+ark-serialize = { git="https://github.com/arkworks-rs/algebra", features = ["derive"] }
 ark-std = "^0.3.0"
 rand = "^0.8.4" 
 
