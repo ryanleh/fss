@@ -3,6 +3,7 @@ use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as S
 use rand::{CryptoRng, RngCore};
 use std::error::Error;
 
+pub mod interval;
 pub mod point;
 
 pub mod data_structures;
@@ -42,4 +43,25 @@ pub trait FSS {
 
     /// Takes the secret shares as input, and outputs the corresponding function value.
     fn decode(shares: (&Self::Share, &Self::Share)) -> Result<Self::Range, Box<dyn Error>>;
+}
+
+/// Helper function to convert a `usize` to a vector of bools in little endian format
+#[inline]
+fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Error>> {
+    // Ensure that the point is valid in the given domain
+    if val >= (1 << log_domain) {
+        return Err("Input point is not contained in provided domain")?;
+    }
+
+    let mut bits = Vec::new();
+    bits.reserve(log_domain - 1);
+
+    // Compute the bit-decomposition
+    let bytes = val.to_le_bytes();
+    for i in 0..log_domain {
+        let mask = 1 << (i % 8);
+        let bit = mask & bytes[(i / 8) as usize];
+        bits.push(bit != 0);
+    }
+    Ok(bits)
 }

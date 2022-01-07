@@ -27,27 +27,6 @@ where
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
     S: Seed,
 {
-    /// Converts a `usize` to a vector of bools in little endian format
-    #[inline]
-    fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Error>> {
-        // Ensure that the point is valid in the given domain
-        if val >= (1 << log_domain) {
-            return Err("Input point is not contained in provided domain")?;
-        }
-
-        let mut bits = Vec::new();
-        bits.reserve(log_domain - 1);
-
-        // Compute the bit-decomposition
-        let bytes = val.to_le_bytes();
-        for i in 0..log_domain {
-            let mask = 1 << (i % 8);
-            let bit = mask & bytes[(i / 8) as usize];
-            bits.push(bit != 0);
-        }
-        Ok(bits)
-    }
-
     /// Generates the root of the evaluation tree
     fn gen_root<RNG: CryptoRng + RngCore>(bit: bool, rng: &mut RNG) -> (DPFNode<S>, DPFNode<S>) {
         // Sample party 1's initial 0/1 seeds and control bits.
@@ -103,7 +82,7 @@ where
         let (log_domain, point, val) = *f;
 
         // Bit-decompose the input point
-        let point = Self::usize_to_bits(log_domain, point)?;
+        let point = crate::usize_to_bits(log_domain, point)?;
 
         // Randomly generate the root node of the DPF evaluation tree
         let (p1_root, p2_root) = Self::gen_root(point[0], rng);
@@ -234,7 +213,7 @@ where
 
     fn eval(key: &Self::Key, point: &Self::Domain) -> Result<F, Box<dyn Error>> {
         // Bit-decompose the input point
-        let point = Self::usize_to_bits(key.log_domain, *point)?;
+        let point = crate::usize_to_bits(key.log_domain, *point)?;
 
         // Iterate through each layer of the tree, using the current node's seed to generate new
         // masked nodes, the current node's control bit to select the correct codeword, and the
