@@ -1,11 +1,17 @@
-use super::DPF;
 use ark_ff::{
     BigInteger64 as BigInteger, FftParameters, Fp64, Fp64Parameters, FpParameters, One,
     UniformRand, Zero,
 };
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::test_rng;
 use rand::{Rng, RngCore};
 use rand_chacha::ChaChaRng;
+use std::rc::Rc;
+
+use crate::{
+    point::{bgi18::*, DPF},
+    Pair,
+};
 
 // Set field, seed, and PRG types
 type F = Fp64<FParameters>;
@@ -88,20 +94,6 @@ fn test_bad_inputs_helper<D: DPF<F>>() {
     assert!(result.is_err());
 }
 
-#[test]
-fn test_correctness() {
-    super::tests::test_correctness_helper::<BGI18>();
-}
-
-#[test]
-fn test_bad_inputs() {
-    super::tests::test_bad_inputs_helper::<BGI18>();
-}
-
-use super::bgi18::*;
-use bincode;
-use std::rc::Rc;
-
 fn gen_rand_codeword<R: RngCore + Rng>(rng: &mut R) -> CodeWord<S> {
     let mut seeds = Pair::<S>::default();
     rng.fill_bytes(seeds[0].as_mut());
@@ -114,6 +106,16 @@ fn gen_rand_codeword<R: RngCore + Rng>(rng: &mut R) -> CodeWord<S> {
         seeds,
         control_bits,
     }
+}
+
+#[test]
+fn test_correctness() {
+    super::tests::test_correctness_helper::<BGI18>();
+}
+
+#[test]
+fn test_bad_inputs() {
+    super::tests::test_bad_inputs_helper::<BGI18>();
 }
 
 #[test]
@@ -135,14 +137,16 @@ fn test_serialization() {
     control_bits[1] = rng.gen_bool(0.5);
 
     // Serialize the pairs and assert the correct lengths
-    let serialized_seeds = bincode::serialize(&seeds).unwrap();
-    let serialized_bits = bincode::serialize(&control_bits).unwrap();
+    let mut serialized_seeds = vec![0; seeds.serialized_size()];
+    let mut serialized_bits = vec![0; control_bits.serialized_size()];
+    seeds.serialize(&mut serialized_seeds[..]).unwrap();
+    control_bits.serialize(&mut serialized_bits[..]).unwrap();
     assert!(serialized_bits.len() == 1);
     assert!(serialized_seeds.len() == seed_len * 2);
 
     // Deserialize the Pairs and ensure they're unchanged
-    let recovered_seeds = bincode::deserialize::<Pair<S>>(&serialized_seeds).unwrap();
-    let recovered_bits = bincode::deserialize::<Pair<bool>>(&serialized_bits).unwrap();
+    let recovered_seeds = <Pair<S>>::deserialize(serialized_seeds.as_slice()).unwrap();
+    let recovered_bits = <Pair<bool>>::deserialize(serialized_bits.as_slice()).unwrap();
     assert!(seeds == recovered_seeds);
     assert!(control_bits == recovered_bits);
 
@@ -157,11 +161,12 @@ fn test_serialization() {
     };
 
     // Serialize the node and assert the correct length
-    let serialized_root = bincode::serialize(&root).unwrap();
+    let mut serialized_root = vec![0; root.serialized_size()];
+    root.serialize(&mut serialized_root[..]).unwrap();
     assert!(serialized_root.len() == seed_len * 2 + 1);
 
     // Deserialize the node and assert that it's unchanged
-    let recovered_root = bincode::deserialize::<DPFNode<S>>(&serialized_root).unwrap();
+    let recovered_root = <DPFNode<S>>::deserialize(serialized_root.as_slice()).unwrap();
     assert!(root == recovered_root);
 
     // ---------------
@@ -185,10 +190,11 @@ fn test_serialization() {
     };
 
     // Serialize the node. The size can be variable here since the field element may be compressed
-    let serialized_key = bincode::serialize(&key).unwrap();
+    let mut serialized_key = vec![0; key.serialized_size()];
+    key.serialize(&mut serialized_key[..]).unwrap();
 
     // Deserialize the node and assert that it's unchanged
-    let recovered_key = bincode::deserialize::<Key<F, S>>(&serialized_key).unwrap();
+    let recovered_key = <Key<F, S>>::deserialize(serialized_key.as_slice()).unwrap();
     assert!(key.log_domain == recovered_key.log_domain);
     assert!(key.root == recovered_key.root);
     assert!(key.codewords == recovered_key.codewords);

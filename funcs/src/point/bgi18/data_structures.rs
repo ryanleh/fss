@@ -1,16 +1,13 @@
 use ark_ff::Field;
+use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize, *};
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
-use serde::{Deserialize, Serialize};
-use std::{
-    marker::PhantomData,
-    ops::{Index, IndexMut},
-    rc::Rc,
-    vec::Vec,
-};
+use std::{marker::PhantomData, rc::Rc, vec::Vec};
+
+use crate::{Pair, Seed};
 
 /// A succinct representation of a function which outputs additive shares of
 /// a point function
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Key<F: Field, S: Seed> {
     pub log_domain: usize,
     pub root: DPFNode<S>,
@@ -18,53 +15,8 @@ pub struct Key<F: Field, S: Seed> {
     pub mask: F,
 }
 
-impl<F: Field, S: Seed> Serialize for Key<F, S> {
-    fn serialize<Ser>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error>
-    where
-        Ser: serde::Serializer,
-    {
-        // The arkworks libraries have their own serialization, so serialize the masking
-        // field element into a buffer before passing to serde
-        let mut serialized_mask = vec![0; self.mask.serialized_size()];
-        self.mask.serialize(&mut serialized_mask[..]).map_err(|e| {
-            serde::ser::Error::custom(format!("Serializing field element failed: {:?}", e))
-        })?;
-        (
-            &self.log_domain,
-            &self.root,
-            &self.codewords,
-            &serialized_mask,
-        )
-            .serialize(serializer)
-    }
-}
-
-impl<'de, F: Field, S: Seed> Deserialize<'de> for Key<F, S> {
-    fn deserialize<D>(deserializer: D) -> Result<Key<F, S>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        type KeyMsg<S> = (usize, DPFNode<S>, Rc<Vec<Pair<CodeWord<S>>>>, Vec<u8>);
-        let (log_domain, root, codewords, mask_buf) = <KeyMsg<S>>::deserialize(deserializer)?;
-
-        // The arkworks libraries have their own serialization, so deserialize the masking
-        // field element manually
-        let mask = F::deserialize(mask_buf.as_slice()).map_err(|e| {
-            serde::de::Error::custom(format!("De-serializing field element failed: {:?}", e))
-        })?;
-
-        Ok(Key {
-            log_domain,
-            root,
-            codewords,
-            mask,
-        })
-    }
-}
-
 /// A node in the DPF tree is composed of a seed and control-bit corresponding to each child node
-#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(bound(serialize = "S: Seed", deserialize = "S: Seed"))]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DPFNode<S: Seed> {
     pub seeds: Pair<S>,
     pub control_bits: Pair<bool>,
@@ -133,8 +85,6 @@ impl<S: Seed> IntermediateDPFNode<S> {
     }
 
     /// Unmask the provided `MaskedDPFNode` at `bit_idx` using `codeword`
-    ///
-    /// TODO: Can you use SIMD here
     #[inline]
     pub(super) fn unmask_node<PRG>(
         bit: bool,
@@ -156,94 +106,5 @@ impl<S: Seed> IntermediateDPFNode<S> {
             seed: masked_node.masked_seeds[bit],
             control_bit: masked_node.masked_control_bits[bit],
         }
-    }
-}
-
-/// A PRG seed
-pub trait Seed:
-    Sized + Default + Copy + AsRef<[u8]> + AsMut<[u8]> + Serialize + for<'de> Deserialize<'de>
-{
-}
-impl Seed for [u8; 16] {}
-impl Seed for [u8; 32] {}
-
-/// A container for two identical-type objects which can be indexed using `bool`
-#[derive(Clone, Default, Eq, PartialEq)]
-pub struct Pair<T>([T; 2]);
-
-impl<T> Pair<T> {
-    #[inline]
-    pub fn new(first: T, second: T) -> Self {
-        Self([first, second])
-    }
-}
-
-impl<T: Sized + Clone> Index<usize> for Pair<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        assert!(index == 0 || index == 1);
-        &self.0[index]
-    }
-}
-
-impl<T: Sized + Clone> IndexMut<usize> for Pair<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        assert!(index == 0 || index == 1);
-        &mut self.0[index]
-    }
-}
-
-impl<T: Sized + Clone> Index<bool> for Pair<T> {
-    type Output = T;
-
-    fn index(&self, index: bool) -> &Self::Output {
-        &self.0[index as usize]
-    }
-}
-
-impl<T: Sized + Clone> IndexMut<bool> for Pair<T> {
-    fn index_mut(&mut self, index: bool) -> &mut Self::Output {
-        &mut self.0[index as usize]
-    }
-}
-
-impl<T: Serialize> Serialize for Pair<T> {
-    default fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for Pair<T> {
-    default fn deserialize<D>(deserializer: D) -> Result<Pair<T>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Pair(<[T; 2]>::deserialize(deserializer)?))
-    }
-}
-
-/// For `Pair<bool>` we can save space by encoding both bits into a single `u8`.
-impl Serialize for Pair<bool> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let buf: u8 = (self[0] as u8) << 1 | self[1] as u8;
-        serializer.serialize_u8(buf)
-    }
-}
-
-/// For `Pair<bool>` we can save space by encoding both bits into a single `u8`.
-impl<'de> Deserialize<'de> for Pair<bool> {
-    fn deserialize<D>(deserializer: D) -> Result<Pair<bool>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let byte = <u8>::deserialize(deserializer)?;
-        Ok(Pair([(byte & 2) == 2, (byte & 1) == 1]))
     }
 }
