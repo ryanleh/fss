@@ -2,7 +2,7 @@ use ark_ff::Field;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use std::{error::Error, marker::PhantomData, rc::Rc, vec::Vec};
 
-use crate::{point::DPF, Pair, Seed};
+use crate::{point::DPF, Pair, Seed, FSS};
 
 mod data_structures;
 pub use data_structures::*;
@@ -83,20 +83,25 @@ where
     }
 }
 
-impl<F, PRG, S> DPF<F> for BGI18<F, PRG, S>
+impl<F, PRG, S> FSS for BGI18<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
     S: Seed,
 {
     type Key = Key<F, S>;
+    type Description = super::PFDescription<F>;
+    type Domain = super::PFDomain;
+    type Range = super::PFRange<F>;
+    type Share = super::PFRange<F>;
 
     fn gen<RNG: CryptoRng + RngCore>(
-        log_domain: usize,
-        point: usize,
-        val: F,
+        f: &Self::Description,
         rng: &mut RNG,
     ) -> Result<(Self::Key, Self::Key), Box<dyn Error>> {
+        // TODO
+        let (log_domain, point, val) = *f;
+
         // Bit-decompose the input point
         let point = Self::usize_to_bits(log_domain, point)?;
 
@@ -227,9 +232,9 @@ where
         Ok((key_1, key_2))
     }
 
-    fn eval(key: &Self::Key, point: usize) -> Result<F, Box<dyn Error>> {
+    fn eval(key: &Self::Key, point: &Self::Domain) -> Result<F, Box<dyn Error>> {
         // Bit-decompose the input point
-        let point = Self::usize_to_bits(key.log_domain, point)?;
+        let point = Self::usize_to_bits(key.log_domain, *point)?;
 
         // Iterate through each layer of the tree, using the current node's seed to generate new
         // masked nodes, the current node's control bit to select the correct codeword, and the
@@ -249,4 +254,16 @@ where
         let elem = F::rand(&mut PRG::from_seed(node.seed));
         Ok(elem * key.mask)
     }
+
+    fn decode(shares: (&Self::Share, &Self::Share)) -> Result<Self::Range, Box<dyn Error>> {
+        Ok(*shares.0 - shares.1)
+    }
+}
+
+impl<F, PRG, S> DPF<F> for BGI18<F, PRG, S>
+where
+    F: Field,
+    PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
+    S: Seed,
+{
 }

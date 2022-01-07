@@ -6,7 +6,7 @@ use std::{marker::PhantomData, rc::Rc, vec::Vec};
 use crate::{Pair, Seed};
 
 /// A succinct representation of a function which outputs additive shares of
-/// a point function
+/// a point function evaluation
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Key<F: Field, S: Seed> {
     pub log_domain: usize,

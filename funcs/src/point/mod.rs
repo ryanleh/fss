@@ -1,8 +1,7 @@
 //! A module implementing various distributed point function schemes
 use ark_ff::Field;
-use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize};
-use rand::{CryptoRng, RngCore};
-use std::error::Error;
+
+use crate::FSS;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -12,24 +11,18 @@ pub(crate) mod tests;
 /// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
 pub mod bgi18;
 
-/// Describes the interface for a distributed point function scheme over some field. Such a scheme
-/// allows a sender to generate two keys which provide succinct representations of functions
-/// which output additive secret shares of the point function.
-pub trait DPF<F: Field> {
-    /// A succinct representation of a function which outputs shares of the underlying point
-    /// function
-    type Key: Serialize + Deserialize;
+/// The domain of a point function
+type PFDomain = usize;
 
-    /// Takes the description of a point function as input -- where the value is a field element --
-    /// and outputs two `Key`s.
-    fn gen<RNG: CryptoRng + RngCore>(
-        domain: usize,
-        point: usize,
-        val: F,
-        rng: &mut RNG,
-    ) -> Result<(Self::Key, Self::Key), Box<dyn Error>>;
+/// The range of a point function
+type PFRange<F> = F;
 
-    /// Takes a `Key` and point as input, and outputs a secret share of the point function at
-    /// that point.
-    fn eval(key: &Self::Key, point: usize) -> Result<F, Box<dyn Error>>;
+/// The description of a point function: the logarithm of the domain size, a
+/// point in that domain, and the value of that point.
+type PFDescription<F> = (usize, usize, F);
+
+/// A distributed point function (DPF) is a type of FSS scheme for point functions.
+pub trait DPF<F: Field>:
+    FSS<Domain = PFDomain, Range = PFRange<F>, Description = PFDescription<F>>
+{
 }
