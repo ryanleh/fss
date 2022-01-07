@@ -1,3 +1,4 @@
+//! A module containing data structures relevant to FSS schemes
 use ark_serialize::{
     CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize, SerializationError,
 };
