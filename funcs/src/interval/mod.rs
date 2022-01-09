@@ -3,8 +3,8 @@ use ark_ff::Field;
 
 use crate::FSS;
 
-//#[cfg(test)]
-//pub(crate) mod tests;
+#[cfg(test)]
+pub(crate) mod tests;
 
 /// DIF scheme based on [[BGI18]].
 ///
@@ -23,7 +23,7 @@ type IFRange<F> = F;
 type IFDescription<F> = (usize, usize, F);
 
 /// A distributed interval function (DIF) is a type of FSS scheme for interval functions.
-pub trait DPF<F: Field>:
+pub trait DIF<F: Field>:
     FSS<Domain = IFDomain, Range = IFRange<F>, Description = IFDescription<F>>
 {
 }

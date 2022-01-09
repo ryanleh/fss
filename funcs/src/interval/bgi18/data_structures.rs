@@ -46,7 +46,7 @@ where
     /// Given an `IntermediateNode`, and the next bit index which will be evaluated, sample the
     /// `MaskedNode` corresponding to the next node in the DIF evaluation path
     #[inline]
-    pub(super) fn sample_masked_node(node: &IntermediateNode<F, PRG::Seed>) -> Self {
+    pub(super) fn sample_masked_node(node: &IntermediateNode<PRG::Seed>) -> Self {
         let mut prg = PRG::from_seed(node.seed);
 
         // Sample masked seeds.
@@ -69,6 +69,56 @@ where
             masked_control_bits,
             masked_elems,
             _prg: PhantomData,
+        }
+    }
+}
+
+/// An intermediate node in the DIF tree during evaluation where we know which seed/control-bit is
+/// going to be selected.
+///
+/// Note this is simply a memory optimization, since we still need to fully evaluate the PRG for
+/// correctness
+pub(super) struct IntermediateNode<S: Seed> {
+    pub seed: S,
+    pub control_bit: bool,
+}
+
+impl<S: Seed> IntermediateNode<S> {
+    /// Construct `Self` from a `Node` and a given bit
+    pub(super) fn new<F: Field>(bit: bool, node: &Node<F, S>) -> Self {
+        IntermediateNode {
+            seed: node.seeds[bit],
+            control_bit: node.control_bits[bit],
+        }
+    }
+
+    /// Unmask the provided `MaskedNode` at `bit_idx` using `codeword` and `acc_val`
+    #[inline]
+    pub(super) fn unmask_node<PRG, F>(
+        bit: bool,
+        mut masked_node: MaskedNode<PRG, F, S>,
+        codeword: &CodeWord<F, S>,
+        accumulator: Option<&mut F>,
+    ) -> Self
+    where
+        PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
+        F: Field,
+    {
+        // XOR `masked_node` with `codeword` in-place
+        masked_node.masked_seeds[bit]
+            .as_mut()
+            .iter_mut()
+            .zip(codeword.seeds[bit].as_ref())
+            .for_each(|(s, cs)| *s ^= cs);
+        masked_node.masked_control_bits[bit] ^= codeword.control_bits[bit];
+
+        // If an accumulator is provided, update it
+        if let Some(acc) = accumulator {
+            *acc += masked_node.masked_elems[bit] + codeword.elems[bit];
+        }
+        Self {
+            seed: masked_node.masked_seeds[bit],
+            control_bit: masked_node.masked_control_bits[bit],
         }
     }
 }

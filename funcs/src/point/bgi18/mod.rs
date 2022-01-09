@@ -28,7 +28,7 @@ where
     S: Seed,
 {
     /// Generates the root of the evaluation tree
-    fn gen_root<RNG: CryptoRng + RngCore>(bit: bool, rng: &mut RNG) -> (DPFNode<S>, DPFNode<S>) {
+    fn gen_root<RNG: CryptoRng + RngCore>(bit: bool, rng: &mut RNG) -> (Node<S>, Node<S>) {
         // Sample party 1's initial 0/1 seeds and control bits.
         let mut p1_seeds = Pair::<S>::default();
         rng.fill_bytes(p1_seeds[0].as_mut());
@@ -50,11 +50,11 @@ where
         p2_control_bits[!bit] = p1_control_bits[!bit];
 
         (
-            DPFNode {
+            Node {
                 seeds: p1_seeds,
                 control_bits: p1_control_bits,
             },
-            DPFNode {
+            Node {
                 seeds: p2_seeds,
                 control_bits: p2_control_bits,
             },
@@ -78,7 +78,7 @@ where
         f: &Self::Description,
         rng: &mut RNG,
     ) -> Result<(Self::Key, Self::Key), Box<dyn Error>> {
-        // TODO
+        // Parse the function description
         let (log_domain, point, val) = *f;
 
         // Bit-decompose the input point
@@ -92,22 +92,22 @@ where
         all_codewords.reserve_exact(log_domain - 1);
 
         // Keep track of which node of the tree we're in
-        let mut p1_node = IntermediateDPFNode::new(point[0], &p1_root);
-        let mut p2_node = IntermediateDPFNode::new(point[0], &p2_root);
+        let mut p1_node = IntermediateNode::new(point[0], &p1_root);
+        let mut p2_node = IntermediateNode::new(point[0], &p2_root);
 
         for i in 0..(log_domain - 1) {
             // Use the previous node to sample new masked nodes corresponding to `bit_idx`
-            let p1_masked_node = MaskedDPFNode::<PRG, S>::sample_masked_node(&p1_node);
-            let p2_masked_node = MaskedDPFNode::<PRG, S>::sample_masked_node(&p2_node);
+            let p1_masked_node = MaskedNode::<PRG, S>::sample_masked_node(&p1_node);
+            let p2_masked_node = MaskedNode::<PRG, S>::sample_masked_node(&p2_node);
 
             // For each level of the tree, there are two `CodeWords`, each corresponding to the
             // current control bit. Each `CodeWord` contains masks to apply to the current
-            // `MaskedDPFNode` in order to get the next `DPFNode`.
+            // `MaskedNode` in order to get the next `Node`.
             //
             // These masks are designed such that, if the parties are evaluating the path
-            // corresponding to `point`, then the subsequent `DPFNode` will be randomly sampled.
+            // corresponding to `point`, then the subsequent `Node` will be randomly sampled.
             // However, if the path ever diverges from `point`, then these masks will produce an
-            // identical `DPFNode` for both parties.
+            // identical `Node` for both parties.
             let mut codeword_0_seeds = Pair::<S>::default();
             let mut codeword_0_control_bits = Pair::<bool>::default();
             let mut codeword_1_seeds = Pair::<S>::default();
@@ -164,12 +164,12 @@ where
                 },
             );
 
-            p1_node = IntermediateDPFNode::unmask_node(
+            p1_node = IntermediateNode::unmask_node(
                 point[i + 1],
                 p1_masked_node,
                 &codewords[p1_node.control_bit],
             );
-            p2_node = IntermediateDPFNode::unmask_node(
+            p2_node = IntermediateNode::unmask_node(
                 point[i + 1],
                 p2_masked_node,
                 &codewords[p2_node.control_bit],
@@ -218,16 +218,16 @@ where
         // Iterate through each layer of the tree, using the current node's seed to generate new
         // masked nodes, the current node's control bit to select the correct codeword, and the
         // codeword to unmask the masked node to get the next node in the tree
-        let mut node = IntermediateDPFNode::new(point[0], &key.root);
+        let mut node = IntermediateNode::new(point[0], &key.root);
         for i in 1..key.log_domain {
             // Use the previous node's seed to sample a masked node corresponding to `bit_idx`
-            let masked_node = MaskedDPFNode::<PRG, S>::sample_masked_node(&node);
+            let masked_node = MaskedNode::<PRG, S>::sample_masked_node(&node);
 
             // Use the previous node's control bit to select the correct codeword
             let codeword = &key.codewords[i - 1][node.control_bit];
 
             // Combine the masked node and codeword to get the next node
-            node = IntermediateDPFNode::unmask_node(point[i], masked_node, codeword);
+            node = IntermediateNode::unmask_node(point[i], masked_node, codeword);
         }
         // Use the final PRG seed to generate the masked field element
         let elem = F::rand(&mut PRG::from_seed(node.seed));

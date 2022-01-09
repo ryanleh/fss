@@ -45,7 +45,7 @@ pub trait FSS {
     fn decode(shares: (&Self::Share, &Self::Share)) -> Result<Self::Range, Box<dyn Error>>;
 }
 
-/// Helper function to convert a `usize` to a vector of bools in little endian format
+/// Helper function to convert a `usize` to a vector of bools in big endian format
 #[inline]
 fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Error>> {
     // Ensure that the point is valid in the given domain
@@ -56,12 +56,15 @@ fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Err
     let mut bits = Vec::new();
     bits.reserve(log_domain - 1);
 
-    // Compute the bit-decomposition
+    // Compute the little-endian bit-decomposition
     let bytes = val.to_le_bytes();
     for i in 0..log_domain {
         let mask = 1 << (i % 8);
         let bit = mask & bytes[(i / 8) as usize];
         bits.push(bit != 0);
     }
+
+    // Convert to big-endian and return
+    bits.reverse();
     Ok(bits)
 }

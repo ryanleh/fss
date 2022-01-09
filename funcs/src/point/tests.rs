@@ -154,11 +154,11 @@ fn test_serialization() {
     assert!(control_bits == recovered_bits);
 
     // ---------------
-    // --- DPFNode ---
+    // --- Node ---
     // ---------------
 
-    // Use that pair as a root to test DPFNode
-    let root = DPFNode {
+    // Use that pair as a root to test Node
+    let root = Node {
         seeds,
         control_bits,
     };
@@ -169,7 +169,7 @@ fn test_serialization() {
     assert!(serialized_root.len() == seed_len * 2 + 1);
 
     // Deserialize the node and assert that it's unchanged
-    let recovered_root = <DPFNode<S>>::deserialize(serialized_root.as_slice()).unwrap();
+    let recovered_root = <Node<S>>::deserialize(serialized_root.as_slice()).unwrap();
     assert!(root == recovered_root);
 
     // ---------------
