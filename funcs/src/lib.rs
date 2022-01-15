@@ -6,6 +6,8 @@ use std::error::Error;
 pub mod interval;
 pub mod point;
 
+pub mod tree;
+
 pub mod data_structures;
 pub use data_structures::*;
 
