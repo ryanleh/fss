@@ -1,16 +1,59 @@
 use ark_ff::Field;
+use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize, *};
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
-use std::{error::Error, marker::PhantomData, rc::Rc, vec::Vec};
+use std::{error::Error, marker::PhantomData, vec::Vec};
 
-use crate::{point::DPF, Pair, Seed, FSS};
-
-mod data_structures;
-pub use data_structures::*;
+use crate::{
+    point::DPF,
+    tree::{TreeFSS, TreeScheme},
+    Pair, Seed,
+};
 
 /// DPF scheme based on [[BGI18]].
 ///
 /// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
-pub struct BGI18<F, PRG, S>
+pub type Bgi18DPF<F, PRG, S> = TreeScheme<F, PRG, S, Bgi18<F, PRG, S>>;
+
+impl<F, PRG, S> DPF<F> for Bgi18DPF<F, PRG, S>
+where
+    F: Field,
+    PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
+    S: Seed,
+{
+}
+
+/// A node in the DPF tree is composed of a seed and control-bit corresponding to each child node
+#[derive(Copy, Clone, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Node<S: Seed> {
+    pub seeds: Pair<S>,
+    pub control_bits: Pair<bool>,
+}
+
+/// `CodeWord`s have the same structure as a `Node` but they are masking values, not the actual
+/// seed/control-bit values.
+pub type CodeWord<S> = Node<S>;
+
+/// An intermediate node in the DPF tree during evaluation where we know which seed/control-bit is
+/// going to be selected.
+///
+/// Note this is simply a memory optimization, since we still need to fully evaluate the PRG for
+/// correctness
+pub struct IntermediateNode<S: Seed> {
+    pub seed: S,
+    pub control_bit: bool,
+}
+
+impl<S: Seed> IntermediateNode<S> {
+    /// Construct `Self` from a `Node` and a given bit
+    pub fn new(bit: bool, seeds: &Pair<S>, control_bits: &Pair<bool>) -> Self {
+        IntermediateNode {
+            seed: seeds[bit],
+            control_bit: control_bits[bit],
+        }
+    }
+}
+
+pub struct Bgi18<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
@@ -21,14 +64,29 @@ where
     _seed: PhantomData<S>,
 }
 
-impl<F, PRG, S> BGI18<F, PRG, S>
+impl<F, PRG, S> TreeFSS<F, PRG, S> for Bgi18<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
     S: Seed,
 {
-    /// Generates the root of the evaluation tree
-    fn gen_root<RNG: CryptoRng + RngCore>(bit: bool, rng: &mut RNG) -> (Node<S>, Node<S>) {
+    type Root = Node<S>;
+    type Codeword = Pair<CodeWord<S>>;
+    type Description = super::PFDescription<F>;
+    type Node = Node<S>;
+    type EvaluationNode = IntermediateNode<S>;
+
+    fn get_domain_and_point(f: &Self::Description) -> Result<(usize, Vec<bool>), Box<dyn Error>> {
+        let log_domain = f.0;
+        let x = crate::usize_to_bits(log_domain, f.1)?;
+        Ok((log_domain, x))
+    }
+
+    fn gen_root<RNG: CryptoRng + RngCore>(
+        _: &Self::Description,
+        bit: bool,
+        rng: &mut RNG,
+    ) -> (Self::Root, Self::Root) {
         // Sample party 1's initial 0/1 seeds and control bits.
         let mut p1_seeds = Pair::<S>::default();
         rng.fill_bytes(p1_seeds[0].as_mut());
@@ -60,189 +118,157 @@ where
             },
         )
     }
-}
 
-impl<F, PRG, S> FSS for BGI18<F, PRG, S>
-where
-    F: Field,
-    PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
-    S: Seed,
-{
-    type Key = Key<F, S>;
-    type Description = super::PFDescription<F>;
-    type Domain = super::PFDomain;
-    type Range = super::PFRange<F>;
-    type Share = super::PFRange<F>;
+    fn evaluate_root(bit: bool, root: &Self::Root) -> (Self::EvaluationNode, Option<F>) {
+        (
+            IntermediateNode::new(bit, &root.seeds, &root.control_bits),
+            None,
+        )
+    }
 
-    fn gen<RNG: CryptoRng + RngCore>(
-        f: &Self::Description,
+    fn sample_masked_level(node: &Self::EvaluationNode) -> Self::Node {
+        let mut prg = PRG::from_seed(node.seed);
+
+        // Sample masked seeds.
+        let mut masked_seeds = Pair::<S>::default();
+        prg.fill_bytes(masked_seeds[0].as_mut());
+        prg.fill_bytes(masked_seeds[1].as_mut());
+
+        // Sample masked control-bits
+        let mut masked_control_bits = Pair::<bool>::default();
+        masked_control_bits[0] = prg.gen_bool(0.5);
+        masked_control_bits[1] = prg.gen_bool(0.5);
+
+        Self::Node {
+            seeds: masked_seeds,
+            control_bits: masked_control_bits,
+        }
+    }
+
+    fn compute_codeword<RNG: CryptoRng + RngCore>(
+        _: &Self::Description,
+        bit: bool,
+        _: &Self::EvaluationNode,
+        p1_masked_node: &Self::Node,
+        p2_masked_node: &Self::Node,
         rng: &mut RNG,
-    ) -> Result<(Self::Key, Self::Key), Box<dyn Error>> {
-        // Parse the function description
-        let (log_domain, point, val) = *f;
+    ) -> Self::Codeword {
+        // For each level of the tree, there are two `CodeWords`, each corresponding to the
+        // current control bit. Each `CodeWord` contains masks to apply to the current
+        // `MaskedNode` in order to get the next `Node`.
+        //
+        // These masks are designed such that, if the parties are evaluating the path
+        // corresponding to `point`, then the subsequent `Node` will be randomly sampled.
+        // However, if the path ever diverges from `point`, then these masks will produce an
+        // identical `Node` for both parties.
+        let mut codeword_0_seeds = Pair::<S>::default();
+        let mut codeword_0_control_bits = Pair::<bool>::default();
+        let mut codeword_1_seeds = Pair::<S>::default();
+        let mut codeword_1_control_bits = Pair::<bool>::default();
 
-        // Bit-decompose the input point
-        let point = crate::usize_to_bits(log_domain, point)?;
+        // The seed masks corresponding to `point` are sampled randomly
+        rng.fill_bytes(codeword_0_seeds[bit].as_mut());
+        rng.fill_bytes(codeword_1_seeds[bit].as_mut());
 
-        // Randomly generate the root node of the DPF evaluation tree
-        let (p1_root, p2_root) = Self::gen_root(point[0], rng);
+        // The seed masks corresponding to `!point` are sampled randomly according to the
+        // following contraint: both parties hold the same seed after applying this mask i.e.
+        // their XOR is false
+        //
+        // TODO: Use SIMD here
+        rng.fill_bytes(codeword_0_seeds[!bit].as_mut());
+        codeword_1_seeds[!bit]
+            .as_mut()
+            .iter_mut()
+            .zip(codeword_0_seeds[!bit].as_ref())
+            .zip(p1_masked_node.seeds[!bit].as_ref())
+            .zip(p2_masked_node.seeds[!bit].as_ref())
+            .for_each(|(((cs_1, cs_0), p1_s), p2_s)| {
+                *cs_1 = cs_0 ^ p1_s ^ p2_s;
+            });
 
-        // Generate codewords for each level of the tree
-        let mut all_codewords = Vec::<Pair<CodeWord<S>>>::new();
-        all_codewords.reserve_exact(log_domain - 1);
+        // The control-bits corresponding to `point` are sampled randomly according to the
+        // following contraint: the control-bits of the parties are different i.e. their XOR is
+        // true
+        codeword_0_control_bits[bit] = rng.gen_bool(0.5);
+        codeword_1_control_bits[bit] = true
+            ^ codeword_0_control_bits[bit]
+            ^ p1_masked_node.control_bits[bit]
+            ^ p2_masked_node.control_bits[bit];
 
-        // Keep track of which node of the tree we're in
-        let mut p1_node = IntermediateNode::new(point[0], &p1_root);
-        let mut p2_node = IntermediateNode::new(point[0], &p2_root);
+        // The control-bits corresponding to `!point` are sampled randomly according to the
+        // following contraint: the control-bits of the parties are the same i.e. their XOR is
+        // false
+        codeword_0_control_bits[!bit] = rng.gen_bool(0.5);
+        codeword_1_control_bits[!bit] = false
+            ^ codeword_0_control_bits[!bit]
+            ^ p1_masked_node.control_bits[!bit]
+            ^ p2_masked_node.control_bits[!bit];
 
-        for i in 0..(log_domain - 1) {
-            // Use the previous node to sample new masked nodes corresponding to `bit_idx`
-            let p1_masked_node = MaskedNode::<PRG, S>::sample_masked_node(&p1_node);
-            let p2_masked_node = MaskedNode::<PRG, S>::sample_masked_node(&p2_node);
+        // Using the masked nodes and generated codewords, derive the node for the next level
+        // of evaluation and save the codewords
+        Pair::new(
+            CodeWord {
+                seeds: codeword_0_seeds,
+                control_bits: codeword_0_control_bits,
+            },
+            CodeWord {
+                seeds: codeword_1_seeds,
+                control_bits: codeword_1_control_bits,
+            },
+        )
+    }
 
-            // For each level of the tree, there are two `CodeWords`, each corresponding to the
-            // current control bit. Each `CodeWord` contains masks to apply to the current
-            // `MaskedNode` in order to get the next `Node`.
-            //
-            // These masks are designed such that, if the parties are evaluating the path
-            // corresponding to `point`, then the subsequent `Node` will be randomly sampled.
-            // However, if the path ever diverges from `point`, then these masks will produce an
-            // identical `Node` for both parties.
-            let mut codeword_0_seeds = Pair::<S>::default();
-            let mut codeword_0_control_bits = Pair::<bool>::default();
-            let mut codeword_1_seeds = Pair::<S>::default();
-            let mut codeword_1_control_bits = Pair::<bool>::default();
+    fn compute_next_level(
+        bit: bool,
+        node: &Self::EvaluationNode,
+        mut masked_node: Self::Node,
+        codewords: &Self::Codeword,
+        _: Option<&mut F>,
+    ) -> Self::EvaluationNode {
+        // Select the correct codeword
+        let codeword = codewords[node.control_bit];
 
-            // The seed masks corresponding to `point` are sampled randomly
-            rng.fill_bytes(codeword_0_seeds[point[i + 1]].as_mut());
-            rng.fill_bytes(codeword_1_seeds[point[i + 1]].as_mut());
+        // XOR `masked_node` with `codeword` in-place
+        masked_node.seeds[bit]
+            .as_mut()
+            .iter_mut()
+            .zip(codeword.seeds[bit].as_ref())
+            .for_each(|(s, cs)| *s ^= cs);
+        masked_node.control_bits[bit] ^= codeword.control_bits[bit];
 
-            // The seed masks corresponding to `!point` are sampled randomly according to the
-            // following contraint: both parties hold the same seed after applying this mask i.e.
-            // their XOR is false
-            //
-            // TODO: Use SIMD here
-            rng.fill_bytes(codeword_0_seeds[!point[i + 1]].as_mut());
-            codeword_1_seeds[!point[i + 1]]
-                .as_mut()
-                .iter_mut()
-                .zip(codeword_0_seeds[!point[i + 1]].as_ref())
-                .zip(p1_masked_node.masked_seeds[!point[i + 1]].as_ref())
-                .zip(p2_masked_node.masked_seeds[!point[i + 1]].as_ref())
-                .for_each(|(((cs_1, cs_0), p1_s), p2_s)| {
-                    *cs_1 = cs_0 ^ p1_s ^ p2_s;
-                });
-
-            // The control-bits corresponding to `point` are sampled randomly according to the
-            // following contraint: the control-bits of the parties are different i.e. their XOR is
-            // true
-            codeword_0_control_bits[point[i + 1]] = rng.gen_bool(0.5);
-            codeword_1_control_bits[point[i + 1]] = true
-                ^ codeword_0_control_bits[point[i + 1]]
-                ^ p1_masked_node.masked_control_bits[point[i + 1]]
-                ^ p2_masked_node.masked_control_bits[point[i + 1]];
-
-            // The control-bits corresponding to `!point` are sampled randomly according to the
-            // following contraint: the control-bits of the parties are the same i.e. their XOR is
-            // false
-            codeword_0_control_bits[!point[i + 1]] = rng.gen_bool(0.5);
-            codeword_1_control_bits[!point[i + 1]] = false
-                ^ codeword_0_control_bits[!point[i + 1]]
-                ^ p1_masked_node.masked_control_bits[!point[i + 1]]
-                ^ p2_masked_node.masked_control_bits[!point[i + 1]];
-
-            // Using the masked nodes and generated codewords, derive the node for the next level
-            // of evaluation and save the codewords
-            let codewords = Pair::new(
-                CodeWord {
-                    seeds: codeword_0_seeds,
-                    control_bits: codeword_0_control_bits,
-                },
-                CodeWord {
-                    seeds: codeword_1_seeds,
-                    control_bits: codeword_1_control_bits,
-                },
-            );
-
-            p1_node = IntermediateNode::unmask_node(
-                point[i + 1],
-                p1_masked_node,
-                &codewords[p1_node.control_bit],
-            );
-            p2_node = IntermediateNode::unmask_node(
-                point[i + 1],
-                p2_masked_node,
-                &codewords[p2_node.control_bit],
-            );
-
-            all_codewords.push(codewords);
+        IntermediateNode {
+            seed: masked_node.seeds[bit],
+            control_bit: masked_node.control_bits[bit],
         }
-        // Using the final PRG seeds, sample random field elements and output a mask s.t. both
-        // parties hold additive secret shares of `val`
-        let p1_elem = F::rand(&mut PRG::from_seed(p1_node.seed));
-        let p2_elem = F::rand(&mut PRG::from_seed(p2_node.seed));
-
-        let mask: F;
-        // If the elements are the same than `mask = 0` which breaks security
-        if p1_elem == p2_elem {
-            return Err("Parties final PRG output is the same")?;
-        } else {
-            mask = ((p1_elem - p2_elem)
-                .inverse()
-                .ok_or("Parties shares sum to zero")?)
-                * val;
-        };
-
-        // Construct and return the resulting keys
-        let key_1 = Key {
-            log_domain,
-            root: p1_root,
-            codewords: Rc::new(all_codewords),
-            mask,
-        };
-
-        let key_2 = Key {
-            log_domain,
-            root: p2_root,
-            codewords: key_1.codewords.clone(),
-            mask,
-        };
-
-        Ok((key_1, key_2))
     }
 
-    fn eval(key: &Self::Key, point: &Self::Domain) -> Result<F, Box<dyn Error>> {
-        // Bit-decompose the input point
-        let point = crate::usize_to_bits(key.log_domain, *point)?;
+    #[inline]
+    fn compute_output_elem(node: &Self::EvaluationNode) -> Option<F> {
+        // Using the PRG seed, sample a random field element
+        Some(F::rand(&mut PRG::from_seed(node.seed)))
+    }
 
-        // Iterate through each layer of the tree, using the current node's seed to generate new
-        // masked nodes, the current node's control bit to select the correct codeword, and the
-        // codeword to unmask the masked node to get the next node in the tree
-        let mut node = IntermediateNode::new(point[0], &key.root);
-        for i in 1..key.log_domain {
-            // Use the previous node's seed to sample a masked node corresponding to `bit_idx`
-            let masked_node = MaskedNode::<PRG, S>::sample_masked_node(&node);
-
-            // Use the previous node's control bit to select the correct codeword
-            let codeword = &key.codewords[i - 1][node.control_bit];
-
-            // Combine the masked node and codeword to get the next node
-            node = IntermediateNode::unmask_node(point[i], masked_node, codeword);
+    #[inline]
+    fn compute_mask(
+        f: &Self::Description,
+        p1_output_elem: &Option<F>,
+        p2_output_elem: &Option<F>,
+    ) -> Result<Option<F>, Box<dyn Error>> {
+        let (_, _, val) = *f;
+        let p1_elem = p1_output_elem.ok_or("Gen(): Output element is None")?;
+        let p2_elem = p2_output_elem.ok_or("Gen(): Output element is None")?;
+        // Output a mask s.t. both parties hold additive secret shares of `val`
+        match p1_elem == p2_elem {
+            true => {
+                // If the elements are the same than `mask = 0` which breaks security
+                Err("Parties final PRG output is the same")?
+            }
+            false => Ok(Some(
+                ((p1_elem - p2_elem)
+                    .inverse()
+                    .ok_or("Parties shares sum to zero")?)
+                    * val,
+            )),
         }
-        // Use the final PRG seed to generate the masked field element
-        let elem = F::rand(&mut PRG::from_seed(node.seed));
-        Ok(elem * key.mask)
     }
-
-    fn decode(shares: (&Self::Share, &Self::Share)) -> Result<Self::Range, Box<dyn Error>> {
-        Ok(*shares.0 - shares.1)
-    }
-}
-
-impl<F, PRG, S> DPF<F> for BGI18<F, PRG, S>
-where
-    F: Field,
-    PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
-    S: Seed,
-{
 }

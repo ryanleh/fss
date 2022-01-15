@@ -6,7 +6,7 @@ use ark_std::test_rng;
 use rand::Rng;
 use rand_chacha::ChaChaRng;
 
-use super::{bgi18, DIF};
+use crate::interval::{bgi18, DIF};
 
 // Set field, seed, and PRG types
 type F = Fp64<FParameters>;
@@ -14,7 +14,7 @@ type S = [u8; 32];
 type PRG = ChaChaRng;
 
 // Aliases for various DPF types
-type BGI18 = bgi18::BGI18<F, PRG, S>;
+type BGI18 = bgi18::Bgi18DIF<F, PRG, S>;
 
 // Define a field to use. This is the same 63-bit field used in
 // "Lightweight Techniques for Private Heavy Hitters"
