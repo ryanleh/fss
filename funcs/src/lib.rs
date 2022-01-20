@@ -7,6 +7,7 @@ pub mod interval;
 pub mod point;
 
 pub mod tree;
+pub use tree::*;
 
 pub mod data_structures;
 pub use data_structures::*;
