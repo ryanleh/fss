@@ -18,8 +18,8 @@ An interval function `f_{x, y}` is a function which evaluates to `y` on input `a
 
 ## Reference papers
 
-[bgi18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
+[bgi15]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
 
-[Function Secret Sharing][bgi18]\
+[Function Secret Sharing][bgi15]\
 Elette Boyle, Niv Gilboa, and Yuval Ishai\
 Eurocrypt 2015

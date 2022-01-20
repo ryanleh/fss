@@ -6,10 +6,10 @@ use crate::FSS;
 #[cfg(test)]
 pub(crate) mod tests;
 
-/// DIF scheme based on [[BGI18]].
+/// DIF scheme based on [[BGI15]].
 ///
-/// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
-pub mod bgi18;
+/// [BGI15]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
+pub mod bgi15;
 
 /// The domain of an interval function
 type IFDomain = usize;

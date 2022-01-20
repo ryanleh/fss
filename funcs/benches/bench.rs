@@ -3,10 +3,10 @@ use ark_ff::{
 };
 use ark_std::test_rng;
 use criterion::{black_box, BenchmarkId, Criterion};
-use rand::Rng;
+use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
 
-use fss_funcs::point::{bgi18, DPF};
+use fss_funcs::{interval, point, Seed, FSS};
 
 #[macro_use]
 extern crate criterion;
@@ -43,7 +43,12 @@ impl FpParameters for FParameters {
     const MODULUS_MINUS_ONE_DIV_TWO: BigInteger = BigInteger([4611686018427387891]);
 }
 
-fn dpf_gen_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
+/// Bench the `gen()` function for tree-based point functions
+fn gen_point_bench<F, T>(c: &mut Criterion, f: &str)
+where
+    F: Field,
+    T: FSS<Description = (usize, usize, F)>,
+{
     let mut rng = test_rng();
 
     for log_domain in LOG_DOMAIN_RANGE {
@@ -52,16 +57,23 @@ fn dpf_gen_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
         let y = F::rand(&mut rng);
         let func = (log_domain, x, y);
 
-        c.bench_with_input(BenchmarkId::new("Gen", log_domain), &log_domain, |b, _| {
-            b.iter(|| black_box(D::gen(&func, &mut rng)))
-        });
+        c.bench_with_input(
+            BenchmarkId::new(format!("{}/Gen", f), log_domain),
+            &log_domain,
+            |b, _| b.iter(|| black_box(T::gen(&func, &mut rng))),
+        );
     }
 }
 
-fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
+/// Bench the `eval()` function for tree-based point functions
+fn eval_point_bench<F, T>(c: &mut Criterion, func: &str)
+where
+    F: Field,
+    T: FSS<Description = (usize, usize, F), Domain = usize>,
+{
     let mut rng = test_rng();
 
-    let mut group = c.benchmark_group("Eval");
+    let mut group = c.benchmark_group(format!("{}/Eval", func));
 
     for log_domain in LOG_DOMAIN_RANGE {
         // Generate a random point in the given domain and field value
@@ -69,8 +81,8 @@ fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
         let y = F::rand(&mut rng);
         let func = (log_domain, x, y);
 
-        // Generate DPF keys
-        let (k1, k2) = D::gen(&func, &mut rng).unwrap();
+        // Generate keys
+        let (k1, k2) = T::gen(&func, &mut rng).unwrap();
 
         // Random evaluation point
         let p = rng.gen_range(0..2usize.pow(log_domain as u32));
@@ -78,30 +90,35 @@ fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("P1/Random", log_domain),
             &log_domain,
-            |b, _| b.iter(|| black_box(D::eval(&k1, &p))),
+            |b, _| b.iter(|| black_box(T::eval(&k1, &p))),
         );
 
         group.bench_with_input(BenchmarkId::new("P1/X", log_domain), &log_domain, |b, _| {
-            b.iter(|| black_box(D::eval(&k1, &x)))
+            b.iter(|| black_box(T::eval(&k1, &x)))
         });
 
         group.bench_with_input(
             BenchmarkId::new("P2/Random", log_domain),
             &log_domain,
-            |b, _| b.iter(|| black_box(D::eval(&k2, &p))),
+            |b, _| b.iter(|| black_box(T::eval(&k2, &p))),
         );
 
         group.bench_with_input(BenchmarkId::new("P2/X", log_domain), &log_domain, |b, _| {
-            b.iter(|| black_box(D::eval(&k2, &x)))
+            b.iter(|| black_box(T::eval(&k2, &x)))
         });
     }
     group.finish();
 }
 
 fn bench_dpf(c: &mut Criterion) {
-    dpf_gen_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
-    dpf_eval_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
+    gen_point_bench::<F, point::bgi15::Bgi15DPF<F, PRG, S>>(c, "Point");
+    eval_point_bench::<F, point::bgi15::Bgi15DPF<F, PRG, S>>(c, "Point");
 }
 
-criterion_group!(benches, bench_dpf);
+fn bench_dif(c: &mut Criterion) {
+    gen_point_bench::<F, interval::bgi15::Bgi15DIF<F, PRG, S>>(c, "Interval");
+    eval_point_bench::<F, interval::bgi15::Bgi15DIF<F, PRG, S>>(c, "Interval");
+}
+
+criterion_group!(benches, bench_dpf, bench_dif);
 criterion_main!(benches);

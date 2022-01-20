@@ -6,7 +6,7 @@ use ark_std::test_rng;
 use rand::Rng;
 use rand_chacha::ChaChaRng;
 
-use crate::point::{bgi18, DPF};
+use crate::point::{bgi15, DPF};
 
 // Set field, seed, and PRG types
 type F = Fp64<FParameters>;
@@ -14,7 +14,7 @@ type S = [u8; 32];
 type PRG = ChaChaRng;
 
 // Aliases for various DPF types
-type BGI18 = bgi18::Bgi18DPF<F, PRG, S>;
+type BGI15 = bgi15::Bgi15DPF<F, PRG, S>;
 
 // Define a field to use. This is the same 63-bit field used in
 // "Lightweight Techniques for Private Heavy Hitters"
@@ -94,10 +94,10 @@ fn test_bad_inputs_helper<D: DPF<F>>() {
 
 #[test]
 fn test_correctness() {
-    super::tests::test_correctness_helper::<BGI18>();
+    super::tests::test_correctness_helper::<BGI15>();
 }
 
 #[test]
 fn test_bad_inputs() {
-    super::tests::test_bad_inputs_helper::<BGI18>();
+    super::tests::test_bad_inputs_helper::<BGI15>();
 }
