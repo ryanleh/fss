@@ -9,12 +9,12 @@ use crate::{
     Pair, Seed,
 };
 
-/// DPF scheme based on [[BGI18]].
+/// DPF scheme based on [[BGI15]].
 ///
-/// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
-pub type Bgi18DPF<F, PRG, S> = TreeScheme<F, PRG, S, Bgi18<F, PRG, S>>;
+/// [BGI15]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
+pub type Bgi15DPF<F, PRG, S> = TreeScheme<F, PRG, S, Bgi15<F, PRG, S>>;
 
-impl<F, PRG, S> DPF<F> for Bgi18DPF<F, PRG, S>
+impl<F, PRG, S> DPF<F> for Bgi15DPF<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
@@ -53,7 +53,7 @@ impl<S: Seed> IntermediateNode<S> {
     }
 }
 
-pub struct Bgi18<F, PRG, S>
+pub struct Bgi15<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
@@ -64,7 +64,7 @@ where
     _seed: PhantomData<S>,
 }
 
-impl<F, PRG, S> TreeFSS<F, PRG, S> for Bgi18<F, PRG, S>
+impl<F, PRG, S> TreeFSS<F, PRG, S> for Bgi15<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,

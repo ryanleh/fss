@@ -6,7 +6,7 @@ use criterion::{black_box, BenchmarkId, Criterion};
 use rand::Rng;
 use rand_chacha::ChaChaRng;
 
-use fss_funcs::point::{bgi18, DPF};
+use fss_funcs::point::{bgi15, DPF};
 
 #[macro_use]
 extern crate criterion;
@@ -99,8 +99,8 @@ fn dpf_eval_bench<F: Field, D: DPF<F>>(c: &mut Criterion) {
 }
 
 fn bench_dpf(c: &mut Criterion) {
-    dpf_gen_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
-    dpf_eval_bench::<F, bgi18::BGI18<F, PRG, S>>(c);
+    dpf_gen_bench::<F, bgi15::Bgi15DPF<F, PRG, S>>(c);
+    dpf_eval_bench::<F, bgi15::Bgi15DPF<F, PRG, S>>(c);
 }
 
 criterion_group!(benches, bench_dpf);

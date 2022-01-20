@@ -1,7 +1,7 @@
 //! A module providing traits for 2-party FSS schemes following the binary-tree-based PRG approach
-//! outlined in [[BGI18]].
+//! outlined in [[BGI15]].
 //!
-//! [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
+//! [BGI15]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
 use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize, *};
 use rand::{CryptoRng, RngCore, SeedableRng};
@@ -10,9 +10,9 @@ use std::{error::Error, marker::PhantomData, rc::Rc, vec::Vec};
 use crate::{Seed, FSS};
 
 /// An interface for the 2-party FSS scheme following the binary-tree-based PRG approach
-/// outlined in [[BGI18]].
+/// introduced in [[BGI15]].
 ///
-/// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
+/// [BGI15]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
 pub trait TreeFSS<F, PRG, S>
 where
     F: Field,

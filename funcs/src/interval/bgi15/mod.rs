@@ -5,17 +5,17 @@ use std::{error::Error, marker::PhantomData, vec::Vec};
 
 use crate::{
     interval::DIF,
-    point::bgi18::IntermediateNode,
+    point::bgi15::IntermediateNode,
     tree::{TreeFSS, TreeScheme},
     Pair, Seed,
 };
 
-/// DIF scheme based on [[BGI18]].
+/// DIF scheme based on [[BGI15]].
 ///
-/// [BGI18]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
-pub type Bgi18DIF<F, PRG, S> = TreeScheme<F, PRG, S, Bgi18<F, PRG, S>>;
+/// [BGI15]: https://www.iacr.org/archive/eurocrypt2015/90560300/90560300.pdf
+pub type Bgi15DIF<F, PRG, S> = TreeScheme<F, PRG, S, Bgi15<F, PRG, S>>;
 
-impl<F, PRG, S> DIF<F> for Bgi18DIF<F, PRG, S>
+impl<F, PRG, S> DIF<F> for Bgi15DIF<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
@@ -36,7 +36,7 @@ pub struct Node<F: Field, S: Seed> {
 /// seed/control-bit values.
 pub type CodeWord<F, S> = Node<F, S>;
 
-pub struct Bgi18<F, PRG, S>
+pub struct Bgi15<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
@@ -47,7 +47,7 @@ where
     _seed: PhantomData<S>,
 }
 
-impl<F, PRG, S> TreeFSS<F, PRG, S> for Bgi18<F, PRG, S>
+impl<F, PRG, S> TreeFSS<F, PRG, S> for Bgi15<F, PRG, S>
 where
     F: Field,
     PRG: CryptoRng + RngCore + SeedableRng<Seed = S>,
