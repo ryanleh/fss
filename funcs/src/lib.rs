@@ -1,63 +1,50 @@
-#![feature(min_specialization)]
-use ark_serialize::{CanonicalDeserialize as Deserialize, CanonicalSerialize as Serialize};
-use rand::{CryptoRng, RngCore};
-use std::error::Error;
-
-pub mod interval;
-pub mod point;
-
-pub mod tree;
-pub use tree::*;
+//! A crate for the SimplePIR preprocessing PIR schemes 
+//!
+//! TODO: Note some code taken from Henry's IDPF 
 
 pub mod data_structures;
 pub use data_structures::*;
 
-/// Describes the interface for a function secret sharing scheme. Such a scheme
-/// allows a sender to generate keys which provide succinct representations of functions
-/// which output secret shares of the underlying function.
-///
-/// Currently this only supports 2-party FSS schemes.
-pub trait FSS {
-    /// A succinct representation of a function which outputs shares of the underlying function
-    type Key: Serialize + Deserialize;
+pub mod group;
+pub use group::*;
 
-    /// A description of the underlying function
-    type Description;
+pub mod prg;
+pub use prg::*;
 
-    /// The domain of the underlying function
-    type Domain;
+pub mod bgi18;
+pub use bgi18::*;
 
-    /// The range of the underlying function
-    type Range;
+#[cfg(test)]
+pub mod tests;
 
-    /// A secret share of the evaluation of the underlying function at a point
-    type Share;
+/// Describes the interface for a 2-party distributed point-function scheme.
+pub trait DPF<G: Group> {
+    /// A succinct representation of a distributed point function.
+    type Key;
 
-    /// Takes the description of an interval function as input -- where the value is a field element --
-    /// and outputs two `Key`s.
-    fn gen<RNG: CryptoRng + RngCore>(
-        f: &Self::Description,
-        rng: &mut RNG,
-    ) -> Result<(Self::Key, Self::Key), Box<dyn Error>>;
+    /// Takes the description of an function as input and outputs the corresponding keys.
+    fn gen(
+        log_domain: usize,
+        point: usize,
+        value: G,
+        prg: &mut PRG
+    ) -> (Self::Key, Self::Key);
 
     /// Takes a `Key` and point as input, and outputs a secret share of the underlying function at
     /// that point.
-    fn eval(key: &Self::Key, point: &Self::Domain) -> Result<Self::Share, Box<dyn Error>>;
+    fn eval(key: &Self::Key, point: &[bool], prg: &mut PRG) -> G;
 
-    /// Takes the secret shares as input, and outputs the corresponding function value.
-    fn decode(shares: (&Self::Share, &Self::Share)) -> Result<Self::Range, Box<dyn Error>>;
+    /// Optimized version of `eval` when evaluating the DPF on the entire domain.
+    fn eval_full(key: &Self::Key, prg: &mut PRG) -> Vec<G>;
 }
 
 /// Helper function to convert a `usize` to a vector of bools in big endian format
 #[inline]
-fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Error>> {
-    // Ensure that the point is valid in the given domain
-    if val >= (1 << log_domain) {
-        return Err("Input point is not contained in provided domain")?;
-    }
+fn usize_to_bits(log_domain: usize, val: usize) -> Vec<bool> {
+    debug_assert!(val < 1 << log_domain);
 
     let mut bits = Vec::new();
-    bits.reserve(log_domain - 1);
+    bits.reserve(log_domain);
 
     // Compute the little-endian bit-decomposition
     let bytes = val.to_le_bytes();
@@ -69,5 +56,5 @@ fn usize_to_bits(log_domain: usize, val: usize) -> Result<Vec<bool>, Box<dyn Err
 
     // Convert to big-endian and return
     bits.reverse();
-    Ok(bits)
+    bits
 }
